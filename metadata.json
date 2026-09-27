@@ -1,0 +1,7 @@
+{
+  "name": "CampusIQ - MBA Career & Opportunity Intelligence",
+  "description": "AI-powered MBA recruiting intelligence, live opportunity radar, curated case competitions & internship tracker.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
