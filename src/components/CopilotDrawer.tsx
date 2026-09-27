@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CopilotMessage } from '../types';
-import { COPILOT_KNOWLEDGE_BASE, USER_PROFILE } from '../data/mockData';
+import { USER_PROFILE } from '../data/mockData';
+import { api } from '../services/api';
 
 interface CopilotDrawerProps {
   isOpen: boolean;
@@ -47,7 +48,7 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  const handleSendMessage = (textToSend?: string) => {
+  const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputValue).trim();
     if (!text) return;
 
@@ -62,72 +63,28 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({
     setInputValue('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      // Find answer in knowledge base or generate contextual MBA response
-      const lower = text.toLowerCase();
-      let matchedReply = '';
-      let matchedBadge = 'Case Intelligence';
-
-      for (const [key, val] of Object.entries(COPILOT_KNOWLEDGE_BASE)) {
-        if (lower.includes(key.toLowerCase()) || key.toLowerCase().includes(lower)) {
-          matchedReply = val.response;
-          matchedBadge = val.badge || matchedBadge;
-          break;
-        }
-      }
-
-      if (!matchedReply) {
-        if (lower.includes('quick commerce') || lower.includes('flipkart') || lower.includes('dark store')) {
-          matchedBadge = 'Flipkart Commerce Labs Docket';
-          matchedReply = `### 📦 Quick-Commerce Optimization Framework
-
-Here is a 4-pillar strategic teardown tailored for the IIMB Flipkart challenge:
-
-1. **Dark Store Route Compression:**
-   - Compress picker travel path using batch clustering based on heatmaps of top 200 SKUs.
-   - Target: Reduce fulfillment cost per basket from $1.18 to $0.72.
-
-2. **Dynamic Delivery Fee Tiers:**
-   - Surge hours (7 PM – 10 PM): Shift non-perishable delivery windows by offering 50 loyalty points.
-   - Retain ≤12 min SLA for impulse grocery items.
-
-3. **Catalog Personalization via Contextual Search:**
-   - Natural language queries like *"quick dinner for 4 under 20 mins"* should bundle recipes into 1-click cart additions.
-
-4. **Team Recommendation:**
-   - Combine your analytics model with **Kavya Iyer's** supply chain routing expertise for maximum jury scoring.`;
-        } else if (lower.includes('resume') || lower.includes('bullets')) {
-          matchedBadge = 'Resume Tailoring Engine';
-          matchedReply = `### 📄 Resume Optimization for ${USER_PROFILE.targetTrack}
-
-Your current profile scores **94% ATS alignment**. Here are recommended impact bullets to add:
-
-- *"Modeled SQL-driven dark store capacity constraints, resulting in a 14% simulated reduction in last-mile dispatch latency."*
-- *"Architected predictive unit economics dashboard evaluating CAC:LTV across 40,000 simulated quick-commerce transactions."*
-- *"Synthesized cross-functional product roadmap for AI search intent engine, cutting catalog bounce rates by 22%."*`;
-        } else {
-          matchedBadge = 'CampusIQ Advisor';
-          matchedReply = `### 💡 CampusIQ Strategic Guidance
-
-Regarding **"${text}"**:
-
-- **Alignment:** Strongly matches your MBA '26 Business Analytics focus.
-- **Actionable Next Step:** Schedule 2 hours to finalize your slide narrative before the **Nov 18 deadline**.
-- **Peer Synergy:** Reach out to **Devansh Mehta** (CFA Level II) to validate the financial sensitivity tables before submitting to the portal.`;
-        }
-      }
-
+    try {
+      const result = await api.chatWithCopilot(text);
       const botMsg: CopilotMessage = {
         id: `bot-${Date.now()}`,
         sender: 'copilot',
-        text: matchedReply,
+        text: result.response,
         timestamp: 'Just now',
-        badge: matchedBadge,
+        badge: result.badge,
       };
-
       setMessages((prev) => [...prev, botMsg]);
+    } catch {
+      const botMsg: CopilotMessage = {
+        id: `bot-${Date.now()}`,
+        sender: 'copilot',
+        text: `Consulting advice on "${text}": prioritize high-ROI initiatives aligned with your strategic goals.`,
+        timestamp: 'Just now',
+        badge: 'CampusIQ Advisor',
+      };
+      setMessages((prev) => [...prev, botMsg]);
+    } finally {
       setIsTyping(false);
-    }, 700);
+    }
   };
 
   const handleCopyText = (content: string) => {

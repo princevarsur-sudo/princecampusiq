@@ -12,6 +12,7 @@ import {
   INITIAL_NOTIFICATIONS,
   INITIAL_PEERS,
 } from './data/mockData';
+import { api } from './services/api';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { RadarView } from './components/RadarView';
@@ -54,6 +55,25 @@ export default function App() {
     }
   }, [toastMessage]);
 
+  // Initial loading from Node.js Express API
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [loadedOpps, loadedTracked, loadedPeers] = await Promise.all([
+          api.getOpportunities(),
+          api.getTrackedItems(),
+          api.getPeers(),
+        ]);
+        if (loadedOpps && loadedOpps.length > 0) setOpportunities(loadedOpps);
+        if (loadedTracked && loadedTracked.length > 0) setTrackedItems(loadedTracked);
+        if (loadedPeers && loadedPeers.length > 0) setPeers(loadedPeers);
+      } catch (err) {
+        console.warn('API fetch fallback to initial data:', err);
+      }
+    }
+    loadData();
+  }, []);
+
   // Tab switching
   const handleSelectTab = (tab: TabType, opportunityId?: string) => {
     if (tab === 'profile') {
@@ -81,6 +101,7 @@ export default function App() {
   // Toggle Save / Bookmark
   const handleToggleSave = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    api.toggleSave(id);
     setOpportunities((prev) =>
       prev.map((opp) => {
         if (opp.id === id) {
@@ -95,21 +116,20 @@ export default function App() {
           if (nextSaved) {
             setTrackedItems((tPrev) => {
               if (tPrev.some((t) => t.opportunityId === id)) return tPrev;
-              return [
-                {
-                  id: `track-${Date.now()}`,
-                  opportunityId: opp.id,
-                  title: opp.title,
-                  company: opp.company,
-                  companyLogo: opp.companyLogo,
-                  category: opp.category,
-                  matchScore: opp.matchScore,
-                  stage: 'saved',
-                  dueDate: opp.deadline,
-                  nextAction: 'Review case brief & form team',
-                },
-                ...tPrev,
-              ];
+              const newItem: TrackedItem = {
+                id: `track-${Date.now()}`,
+                opportunityId: opp.id,
+                title: opp.title,
+                company: opp.company,
+                companyLogo: opp.companyLogo,
+                category: opp.category,
+                matchScore: opp.matchScore,
+                stage: 'saved',
+                dueDate: opp.deadline,
+                nextAction: 'Review case brief & form team',
+              };
+              api.addTrackedItem(newItem);
+              return [newItem, ...tPrev];
             });
           }
           return { ...opp, isSaved: nextSaved };
@@ -127,26 +147,26 @@ export default function App() {
         return prev;
       }
       showToast(`Added "${opp.title}" to In Prep stage!`);
-      return [
-        {
-          id: `track-${Date.now()}`,
-          opportunityId: opp.id,
-          title: opp.title,
-          company: opp.company,
-          companyLogo: opp.companyLogo,
-          category: opp.category,
-          matchScore: opp.matchScore,
-          stage: 'preparing',
-          dueDate: opp.deadline,
-          nextAction: 'Round 1 Submission Prep',
-        },
-        ...prev,
-      ];
+      const newItem: TrackedItem = {
+        id: `track-${Date.now()}`,
+        opportunityId: opp.id,
+        title: opp.title,
+        company: opp.company,
+        companyLogo: opp.companyLogo,
+        category: opp.category,
+        matchScore: opp.matchScore,
+        stage: 'preparing',
+        dueDate: opp.deadline,
+        nextAction: 'Round 1 Submission Prep',
+      };
+      api.addTrackedItem(newItem);
+      return [newItem, ...prev];
     });
   };
 
   // Move stage in Kanban
   const handleMoveStage = (itemId: string, newStage: any) => {
+    api.updateStage(itemId, newStage);
     setTrackedItems((prev) =>
       prev.map((item) => {
         if (item.id === itemId) {
@@ -160,18 +180,21 @@ export default function App() {
 
   // Delete tracked item
   const handleDeleteTrackedItem = (itemId: string) => {
+    api.deleteTrackedItem(itemId);
     setTrackedItems((prev) => prev.filter((i) => i.id !== itemId));
     showToast('Opportunity removed from pipeline.');
   };
 
   // Add custom tracked item
   const handleAddTrackedItem = (newItem: Partial<TrackedItem>) => {
+    api.addTrackedItem(newItem);
     setTrackedItems((prev) => [newItem as TrackedItem, ...prev]);
     showToast(`Added "${newItem.title}" to pipeline!`);
   };
 
   // Toggle Focus item
   const handleToggleFocusItem = (id: string) => {
+    api.toggleFocusItem(id);
     setFocusItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, completed: !item.completed } : item)),
     );
@@ -179,6 +202,7 @@ export default function App() {
 
   // Mark all notifications as read
   const handleMarkNotificationsRead = () => {
+    api.markAllNotificationsRead();
     setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
   };
 
@@ -190,6 +214,7 @@ export default function App() {
 
   // Connect Peer
   const handleConnectPeer = (peerId: string) => {
+    api.connectPeer(peerId);
     setPeers((prev) =>
       prev.map((p) => (p.id === peerId ? { ...p, status: 'connected' } : p)),
     );
